@@ -1,0 +1,110 @@
+[
+  {
+    "chunk_id": "adr-001-01",
+    "document_id": "ADR-001",
+    "title": "Payment Idempotency",
+    "document_type": "ADR",
+    "content": "We introduced idempotency keys across all payment endpoints to prevent duplicate transactions. Clients must generate a unique UUIDv4 Idempotency-Key header for POST /v1/charges. Keys are stored in Redis with a 24-hour TTL and checked before payment gateway submission.",
+    "team": "Payments",
+    "service": "Payment Service"
+  },
+  {
+    "chunk_id": "pm-001-01",
+    "document_id": "PM-001",
+    "title": "Duplicate Payment Incident",
+    "document_type": "Postmortem",
+    "content": "A high-severity incident occurred where 142 customers experienced duplicate credit card charges due to network timeout retries without idempotency locks. The root cause was unhandled retry loops from the mobile client. Resolved by enforcing server-side idempotency keys and atomic payment locks.",
+    "team": "Payments",
+    "service": "Payment Service"
+  },
+  {
+    "chunk_id": "adr-002-01",
+    "document_id": "ADR-002",
+    "title": "Redis Caching Strategy",
+    "document_type": "ADR",
+    "content": "Redis caching was introduced for catalog metadata and user sessions to reduce repeated PostgreSQL queries and lower p99 latency below 50ms. Cache invalidation uses cache-aside with event-driven pub/sub invalidation on write events.",
+    "team": "Platform",
+    "service": "API Gateway"
+  },
+  {
+    "chunk_id": "pm-002-01",
+    "document_id": "PM-002",
+    "title": "Database Outage & Connection Exhaustion",
+    "document_type": "Postmortem",
+    "content": "Production database experienced an outage lasting 38 minutes due to connection pool exhaustion during flash sale traffic. Microservices spawned unbounded connections without pooling. Mitigated by deploying PgBouncer for connection pooling and setting max_connections to 500.",
+    "team": "Infrastructure",
+    "service": "Database Cluster"
+  },
+  {
+    "chunk_id": "pm-003-01",
+    "document_id": "PM-003",
+    "title": "API Latency Spike Incident",
+    "document_type": "Postmortem",
+    "content": "API Gateway p99 response latency spiked to 4.2 seconds during peak traffic hours. Root cause was synchronous database joins on unindexed foreign keys in the order history endpoint. Resolved by adding composite indices and caching hot user order queries in Redis.",
+    "team": "Backend Core",
+    "service": "Order Service"
+  },
+  {
+    "chunk_id": "adr-003-01",
+    "document_id": "ADR-003",
+    "title": "Authentication Strategy & JWT Architecture",
+    "document_type": "ADR",
+    "content": "Adopted stateless RS256-signed JSON Web Tokens (JWT) for user authentication across microservices. Access tokens have a 15-minute expiration, and opaque refresh tokens are persisted in PostgreSQL with rotating tokens to mitigate replay attacks.",
+    "team": "Security",
+    "service": "Auth Service"
+  },
+  {
+    "chunk_id": "adr-004-01",
+    "document_id": "ADR-004",
+    "title": "Database Sharding Architecture",
+    "document_type": "ADR",
+    "content": "We implemented application-level database sharding by tenant_id using consistent hashing across 8 PostgreSQL shards. This solved our single-node disk I/O bottlenecks and enabled horizontal scaling for tenants with millions of daily transactions.",
+    "team": "Infrastructure",
+    "service": "Database Cluster"
+  },
+  {
+    "chunk_id": "spec-001-01",
+    "document_id": "SPEC-001",
+    "title": "Notification Service Design Specification",
+    "document_type": "Design Spec",
+    "content": "Designed an asynchronous notification service decoupling email, SMS, and push dispatching via RabbitMQ message queues. Includes priority queues for transactional OTP alerts and bulk promotional notifications with rate control.",
+    "team": "Communications",
+    "service": "Notification Service"
+  },
+  {
+    "chunk_id": "rb-001-01",
+    "document_id": "RB-001",
+    "title": "Retry Strategy & Exponential Backoff Runbook",
+    "document_type": "Runbook",
+    "content": "Defines standardized HTTP client retry rules: maximum 3 retries with exponential backoff and jitter (initial 100ms, max 2s). Retries must only occur for idempotent GET requests and HTTP 502/503/504 errors, never for 4xx client errors.",
+    "team": "Platform",
+    "service": "API Gateway"
+  },
+  {
+    "chunk_id": "adr-005-01",
+    "document_id": "ADR-005",
+    "title": "Distributed Rate Limiting Strategy",
+    "document_type": "ADR",
+    "content": "Implemented token bucket algorithm rate limiting in Redis at the API Gateway layer. Authenticated users receive 1,000 req/min per API key, while anonymous users are restricted to 60 req/min per IP address, returning HTTP 429 Too Many Requests.",
+    "team": "Platform",
+    "service": "API Gateway"
+  },
+  {
+    "chunk_id": "rb-002-01",
+    "document_id": "RB-002",
+    "title": "Redis Cluster Failover & Disaster Recovery",
+    "document_type": "Runbook",
+    "content": "Step-by-step procedures for handling Redis node failures and split-brain scenarios. When a primary node becomes unreachable, Redis Sentinel automatically promotes a replica within 10 seconds. Fallback circuit breakers bypass cache and query read-replicas directly if Redis is completely down.",
+    "team": "Platform",
+    "service": "Caching Layer"
+  },
+  {
+    "chunk_id": "spec-002-01",
+    "document_id": "SPEC-002",
+    "title": "Database Connection Pooling Specification",
+    "document_type": "Design Spec",
+    "content": "Specification for deploying PgBouncer in transaction pooling mode across all application clusters. Restricts client connection pools to 20 connections per pod with a query timeout of 5 seconds to eliminate connection pool starvation.",
+    "team": "Infrastructure",
+    "service": "Database Cluster"
+  }
+]
