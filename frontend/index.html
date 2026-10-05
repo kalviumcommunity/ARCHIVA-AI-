@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Archiva AI — Engineering Knowledge Intelligence & Contextual Retrieval</title>
+  <meta name="description" content="AI-powered engineering knowledge retrieval platform. Find historical architecture decisions, postmortems, and runbooks with grounded citations.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Navigation / Top Header -->
+    <header class="top-nav">
+      <div class="nav-brand">
+        <div class="brand-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+            <path d="M9 7h6"></path>
+            <path d="M9 11h6"></path>
+          </svg>
+        </div>
+        <div>
+          <span class="brand-title">ARCHIVA AI</span>
+          <span class="brand-badge">MVP v1.0</span>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <button id="viewDocsBtn" class="nav-btn" title="Browse Knowledge Repository">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+          </svg>
+          Knowledge Base (<span id="docCountBadge">12</span>)
+        </button>
+        <div id="backendStatus" class="status-indicator online">
+          <span class="status-dot"></span>
+          <span class="status-text">Backend Online</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Hero Section -->
+    <main class="main-content">
+      <section class="hero-section">
+        <div class="hero-tag">
+          <span class="tag-sparkle">✦</span> Contextual Engineering Intelligence
+        </div>
+        <h1 class="hero-title">ARCHIVA AI</h1>
+        <p class="hero-subtitle">Engineering Knowledge Intelligence</p>
+        <p class="hero-desc">
+          Find and reuse solutions from your organization's engineering history — ADRs, postmortems, design specs, and runbooks.
+        </p>
+
+        <!-- Search / Query Form -->
+        <div class="search-card">
+          <form id="askForm" class="search-form">
+            <div class="input-wrapper">
+              <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <textarea 
+                id="queryInput" 
+                rows="1" 
+                placeholder="Ask an engineering question (e.g., Have we solved duplicate payment processing before?)..." 
+                required
+              ></textarea>
+              <button type="submit" id="submitBtn" class="primary-btn">
+                <span class="btn-text">Ask Archiva</span>
+                <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+              </button>
+            </div>
+            
+            <div class="search-options">
+              <div class="mode-toggle">
+                <button type="button" id="modeAskBtn" class="mode-btn active">Grounded Answer (RAG)</button>
+                <button type="button" id="modeSearchBtn" class="mode-btn">Semantic Search</button>
+              </div>
+              <span class="model-info">Embedding: <code>all-MiniLM-L6-v2 (384d)</code></span>
+            </div>
+          </form>
+
+          <!-- Suggested Queries -->
+          <div class="suggested-queries">
+            <span class="suggested-label">Try asking:</span>
+            <div class="query-chips" id="queryChips">
+              <button class="chip" data-query="Have we solved duplicate payment processing before?">
+                Duplicate payment processing
+              </button>
+              <button class="chip" data-query="How did we handle Redis failures?">
+                Redis cluster failures
+              </button>
+              <button class="chip" data-query="How did we solve API latency?">
+                API latency spike
+              </button>
+              <button class="chip" data-query="Why did we choose database sharding?">
+                Database sharding choice
+              </button>
+              <button class="chip" data-query="How did we handle authentication?">
+                Authentication strategy
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Loading State -->
+      <section id="loadingState" class="loading-state hidden">
+        <div class="pulse-loader">
+          <div class="spinner"></div>
+          <p id="loadingMessage">Retrieving relevant engineering context...</p>
+        </div>
+      </section>
+
+      <!-- Results Area -->
+      <section id="resultsSection" class="results-section hidden">
+        <!-- Question Asked Display -->
+        <div class="query-echo">
+          <span class="query-label">Question:</span>
+          <span id="echoQueryText" class="query-text"></span>
+        </div>
+
+        <!-- Answer Container -->
+        <div class="answer-card" id="answerCard">
+          <div class="answer-header">
+            <div class="answer-header-left">
+              <span class="answer-icon">🤖</span>
+              <span class="answer-title" id="answerTitle">Grounded Solution</span>
+            </div>
+            <div class="answer-badge" id="answerSourceCountBadge">2 Sources Cited</div>
+          </div>
+          <div class="answer-body" id="answerContent">
+            <!-- Rendered Answer -->
+          </div>
+
+          <!-- Feedback Box -->
+          <div class="feedback-section" id="feedbackSection">
+            <div class="feedback-prompt">
+              <span>Was this answer helpful?</span>
+              <div class="feedback-buttons">
+                <button type="button" id="btnHelpfulYes" class="feedback-btn" data-helpful="true">
+                  👍 Yes
+                </button>
+                <button type="button" id="btnHelpfulNo" class="feedback-btn" data-helpful="false">
+                  👎 No
+                </button>
+              </div>
+            </div>
+            <div id="feedbackCommentBox" class="feedback-comment-wrapper hidden">
+              <input type="text" id="feedbackCommentInput" placeholder="Optional comments or suggestions...">
+              <button type="button" id="submitFeedbackBtn" class="secondary-btn">Submit Feedback</button>
+            </div>
+            <div id="feedbackNotice" class="feedback-notice hidden"></div>
+          </div>
+        </div>
+
+        <!-- Citations / Sources Container -->
+        <div class="sources-container" id="sourcesContainer">
+          <div class="sources-header">
+            <h2 class="sources-heading">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10 9 9 9 8 9"></polyline>
+              </svg>
+              Supporting Engineering Sources & Citations
+            </h2>
+            <span class="sources-sub">Retrieved via Dense Vector Cosine Similarity</span>
+          </div>
+          
+          <div class="source-cards-grid" id="sourceCardsGrid">
+            <!-- Dynamic Source Cards -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Knowledge Base Modal / Drawer -->
+      <div id="docsModal" class="modal hidden">
+        <div class="modal-overlay" id="modalOverlay"></div>
+        <div class="modal-content">
+          <div class="modal-header">
+            <div>
+              <h2 class="modal-title">Indexed Engineering Knowledge Base</h2>
+              <p class="modal-subtitle">Browse all documents, ADRs, postmortems, and runbooks available in Archiva AI.</p>
+            </div>
+            <button id="closeModalBtn" class="close-btn">&times;</button>
+          </div>
+          <div class="modal-body" id="modalDocsList">
+            <!-- Documents list dynamically injected -->
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>Archiva AI — Contextual Engineering Intelligence MVP &bull; Built with FastAPI, Sentence-Transformers & Vanilla Web</p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
