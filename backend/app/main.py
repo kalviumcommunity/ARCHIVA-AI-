@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Dict, Any, List
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.models.schemas import (
     SearchRequest,
@@ -114,3 +115,11 @@ def record_feedback(request: FeedbackRequest) -> FeedbackResponse:
         status="success",
         message="Feedback recorded successfully. Thank you!"
     )
+
+
+# Serve the Vanilla JS frontend from the same FastAPI service in production.
+# This keeps the frontend and API on the same origin and avoids deployment-time URL changes.
+frontend_path = Path(__file__).resolve().parents[2] / "frontend"
+
+if frontend_path.exists():
+    app.mount("/", StaticFiles(directory=str(frontend_path), html=True), name="frontend")
