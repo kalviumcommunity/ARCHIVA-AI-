@@ -25,8 +25,8 @@ logger = logging.getLogger("archiva.api")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan event handler: warmup embedding model and precompute vector index."""
-    logger.info("Initializing Archiva AI knowledge base and embedding model...")
+    """Lifespan event handler: load knowledge base documents into memory cache."""
+    logger.info("Initializing Archiva AI knowledge base...")
     load_knowledge_base()
     logger.info("Archiva AI knowledge base loaded successfully.")
     yield
@@ -65,8 +65,12 @@ def search_documents(request: SearchRequest) -> SearchResponse:
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="Search query cannot be empty.")
 
-    results = search(query=request.query, top_k=request.top_k)
-    return SearchResponse(query=request.query, results=results)
+    try:
+        results = search(query=request.query, top_k=request.top_k)
+        return SearchResponse(query=request.query, results=results)
+    except RuntimeError as e:
+        logger.error(f"Search failed: {e}")
+        raise HTTPException(status_code=503, detail=str(e))
 
 
 @app.post("/ask", response_model=AskResponse)
@@ -75,12 +79,16 @@ def ask_question(request: AskRequest) -> AskResponse:
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
 
-    response_data = answer_question(query=request.query)
-    return AskResponse(
-        question=response_data["question"],
-        answer=response_data["answer"],
-        sources=response_data["sources"],
-    )
+    try:
+        response_data = answer_question(query=request.query)
+        return AskResponse(
+            question=response_data["question"],
+            answer=response_data["answer"],
+            sources=response_data["sources"],
+        )
+    except RuntimeError as e:
+        logger.error(f"Question answering failed: {e}")
+        raise HTTPException(status_code=503, detail=str(e))
 
 
 @app.get("/documents")

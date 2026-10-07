@@ -25,19 +25,27 @@ _chunk_embeddings_cache: Optional[np.ndarray] = None
 
 
 def load_knowledge_base() -> List[Dict[str, Any]]:
-    """Load chunks from data file and compute/cache their embeddings."""
-    global _chunks_cache, _chunk_embeddings_cache
+    """Load chunks from data file into memory cache without remote API calls."""
+    global _chunks_cache
     if not _chunks_cache:
         data_file = _find_data_path()
         with open(data_file, "r", encoding="utf-8") as f:
             _chunks_cache = json.load(f)
+    return _chunks_cache
 
-        # Batch compute embeddings for all chunks once
+
+def ensure_embeddings_indexed() -> np.ndarray:
+    """Ensure chunk embeddings are computed and cached in memory."""
+    global _chunks_cache, _chunk_embeddings_cache
+    if not _chunks_cache:
+        load_knowledge_base()
+
+    if _chunk_embeddings_cache is None:
         texts = [chunk.get("content", "") for chunk in _chunks_cache]
         embeddings = generate_embeddings(texts)
         _chunk_embeddings_cache = np.array(embeddings, dtype=np.float32)
 
-    return _chunks_cache
+    return _chunk_embeddings_cache
 
 
 def get_all_documents() -> List[Dict[str, Any]]:
@@ -63,9 +71,10 @@ def search(query: str, top_k: int = 5) -> List[Dict[str, Any]]:
     Returns list of dicts sorted descending by similarity score with keys:
     chunk_id, document_id, title, document_type, content, team, service, score
     """
-    if not _chunks_cache or _chunk_embeddings_cache is None:
+    if not _chunks_cache:
         load_knowledge_base()
 
+    chunk_embeddings = ensure_embeddings_indexed()
     query_embedding = np.array(generate_embedding(query), dtype=np.float32)
 
     # Compute dot product and norms across matrix

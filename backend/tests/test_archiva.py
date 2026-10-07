@@ -1,5 +1,12 @@
+import os
 import pytest
 from fastapi.testclient import TestClient
+
+# Ensure mock embedding mode is enabled for deterministic offline unit testing
+os.environ["ARCHIVA_EMBEDDING_FALLBACK"] = "1"
+from app.retrieval.embeddings import set_mock_mode
+set_mock_mode(True)
+
 from app.main import app
 from app.retrieval.embeddings import generate_embedding, generate_embeddings, get_model
 from app.retrieval.search import search, get_all_documents, cosine_similarity
@@ -23,23 +30,24 @@ def test_embedding_generation():
     text = "We introduced idempotency keys to prevent duplicate transactions."
     emb = generate_embedding(text)
     assert isinstance(emb, list)
-    assert len(emb) > 0
+    assert len(emb) == 768
     assert all(isinstance(val, float) for val in emb)
 
 
-# 3. Embedding dimensions test (384 dimensions for all-MiniLM-L6-v2)
+# 3. Embedding dimensions test (768 dimensions for text-embedding-004)
 def test_embedding_dimensions():
     model = get_model()
+    assert model == "text-embedding-004"
     text = "Redis caching for latency reduction"
     emb = generate_embedding(text)
-    assert len(emb) == 384
+    assert len(emb) == 768
 
     # Test batch embeddings
     batch = ["first query", "second query"]
     embs = generate_embeddings(batch)
     assert len(embs) == 2
-    assert len(embs[0]) == 384
-    assert len(embs[1]) == 384
+    assert len(embs[0]) == 768
+    assert len(embs[1]) == 768
 
 
 # 4. Retrieval returns results
