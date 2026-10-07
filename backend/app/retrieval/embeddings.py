@@ -11,8 +11,10 @@ load_dotenv()
 logger = logging.getLogger("archiva.embeddings")
 
 # Google Gemini Embedding model specifications
-EMBEDDING_MODEL = "text-embedding-004"
+# gemini-embedding-2 is Google's supported text/multimodal embedding model
+EMBEDDING_MODEL = "gemini-embedding-2"
 EMBEDDING_DIM = 768
+FALLBACK_MODELS = ["gemini-embedding-2", "gemini-embedding-exp-03-07"]
 
 _client = None
 _mock_mode: bool = False
@@ -105,7 +107,7 @@ def _generate_mock_embedding(text: str, dim: int = EMBEDDING_DIM) -> List[float]
 
 def generate_embedding(text: str) -> List[float]:
     """
-    Generate a 768-dimensional dense vector embedding for a single text string using Google Gemini.
+    Generate a 768-dimensional dense vector embedding for a single text string using Google Gemini (gemini-embedding-2).
     Falls back to deterministic mock embedding only when explicitly enabled for unit tests.
     """
     if not text.strip():
@@ -115,24 +117,39 @@ def generate_embedding(text: str) -> List[float]:
         return _generate_mock_embedding(text)
 
     client = _get_gemini_client()
-    try:
-        response = client.models.embed_content(
-            model=EMBEDDING_MODEL,
-            contents=text,
-        )
-        if not response.embeddings or not response.embeddings[0].values:
-            raise RuntimeError("Gemini embedding API returned an empty embedding.")
-        return list(response.embeddings[0].values)
-    except Exception as e:
-        if isinstance(e, RuntimeError):
-            raise
-        logger.error(f"Gemini embed_content API call failed: {e}")
-        raise RuntimeError(f"Gemini embedding API call failed: {e}")
+    from google.genai import types
+
+    config = types.EmbedContentConfig(output_dimensionality=EMBEDDING_DIM)
+
+    # Try supported models with fallback if 404 occurs
+    last_err = None
+    for model_name in FALLBACK_MODELS:
+        try:
+            logger.info(f"Calling Gemini embed_content with model={model_name}, dim={EMBEDDING_DIM}")
+            response = client.models.embed_content(
+                model=model_name,
+                contents=text,
+                config=config,
+            )
+            if response.embeddings and response.embeddings[0].values:
+                emb_values = list(response.embeddings[0].values)
+                logger.info(f"Successfully generated embedding vector of length {len(emb_values)} using {model_name}")
+                return emb_values
+        except Exception as e:
+            last_err = e
+            logger.warning(f"Embedding attempt with model {model_name} failed: {e}")
+            if "404" not in str(e) and "NOT_FOUND" not in str(e):
+                # Non-404 error (e.g. auth/quota), no need to try alternative model names
+                break
+
+    logger.error(f"All Gemini embed_content attempts failed. Last error: {last_err}", exc_info=True)
+    raise RuntimeError(f"Gemini embedding API call failed: {last_err}")
 
 
 def generate_embeddings(texts: List[str]) -> List[List[float]]:
     """
-    Generate 768-dimensional embeddings for a batch of text strings efficiently using Google Gemini.
+    Generate 768-dimensional embeddings for a batch of text strings efficiently using Google Gemini (gemini-embedding-2).
+    Wraps each text in a types.Content object as required by gemini-embedding-2 for batching.
     """
     if not texts:
         return []
@@ -141,19 +158,30 @@ def generate_embeddings(texts: List[str]) -> List[List[float]]:
         return [_generate_mock_embedding(t) for t in texts]
 
     client = _get_gemini_client()
-    try:
-        response = client.models.embed_content(
-            model=EMBEDDING_MODEL,
-            contents=texts,
-        )
-        if not response.embeddings or len(response.embeddings) != len(texts):
-            raise RuntimeError(
-                f"Gemini embedding API returned {len(response.embeddings) if response.embeddings else 0} "
-                f"embeddings for {len(texts)} inputs."
+    from google.genai import types
+
+    config = types.EmbedContentConfig(output_dimensionality=EMBEDDING_DIM)
+    # In gemini-embedding-2, pass each text wrapped in types.Content to generate per-document embeddings
+    contents = [types.Content(parts=[types.Part(text=t)]) for t in texts]
+
+    last_err = None
+    for model_name in FALLBACK_MODELS:
+        try:
+            logger.info(f"Calling Gemini batch embed_content for {len(texts)} chunks with model={model_name}")
+            response = client.models.embed_content(
+                model=model_name,
+                contents=contents,
+                config=config,
             )
-        return [list(emb.values) for emb in response.embeddings]
-    except Exception as e:
-        if isinstance(e, RuntimeError):
-            raise
-        logger.error(f"Gemini batch embed_content API call failed: {e}")
-        raise RuntimeError(f"Gemini batch embedding API call failed: {e}")
+            if response.embeddings and len(response.embeddings) == len(texts):
+                embeddings_list = [list(emb.values) for emb in response.embeddings]
+                logger.info(f"Successfully generated batch embeddings for {len(embeddings_list)} documents using {model_name}")
+                return embeddings_list
+        except Exception as e:
+            last_err = e
+            logger.warning(f"Batch embedding attempt with model {model_name} failed: {e}")
+            if "404" not in str(e) and "NOT_FOUND" not in str(e):
+                break
+
+    logger.error(f"All Gemini batch embed_content attempts failed. Last error: {last_err}", exc_info=True)
+    raise RuntimeError(f"Gemini batch embedding API call failed: {last_err}")

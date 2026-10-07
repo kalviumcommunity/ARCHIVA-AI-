@@ -48,6 +48,12 @@ def ensure_embeddings_indexed() -> np.ndarray:
     return _chunk_embeddings_cache
 
 
+def clear_embeddings_cache() -> None:
+    """Clear cached chunk embeddings to force recomputation when needed."""
+    global _chunk_embeddings_cache
+    _chunk_embeddings_cache = None
+
+
 def get_all_documents() -> List[Dict[str, Any]]:
     """Return all engineering chunks and documents in the repository."""
     if not _chunks_cache:

@@ -79,28 +79,46 @@ def generate_deterministic_fallback(query: str, relevant_chunks: List[Dict[str, 
 
 def generate_llm_answer(prompt: str, api_key: str) -> str:
     """Call Google Gemini API to generate a grounded answer."""
+    last_err = None
     try:
-        # Try google.genai first (SDK 2.0+)
         from google import genai
         client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-        )
-        if response and response.text:
-            return response.text.strip()
-    except Exception as e1:
-        logger.debug(f"google.genai SDK attempt failed: {e1}, trying google.generativeai fallback")
-        try:
-            import google.generativeai as genai_legacy
-            genai_legacy.configure(api_key=api_key)
-            model = genai_legacy.GenerativeModel("gemini-1.5-flash")
-            response = model.generate_content(prompt)
-            if response and response.text:
-                return response.text.strip()
-        except Exception as e2:
-            logger.warning(f"Gemini API invocation failed: {e2}. Falling back to deterministic answer.")
-            raise e2
+        for model_name in ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]:
+            try:
+                logger.info(f"Calling Gemini generate_content with model={model_name}")
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                )
+                if response and response.text:
+                    return response.text.strip()
+            except Exception as e:
+                last_err = e
+                logger.warning(f"Generation attempt with {model_name} failed: {e}")
+                if "404" not in str(e) and "NOT_FOUND" not in str(e):
+                    break
+    except Exception as e_init:
+        last_err = e_init
+        logger.warning(f"google.genai SDK initialization failed: {e_init}")
+
+    # Legacy google.generativeai fallback if installed
+    try:
+        import google.generativeai as genai_legacy
+        genai_legacy.configure(api_key=api_key)
+        for legacy_model in ["gemini-1.5-flash", "gemini-2.0-flash"]:
+            try:
+                model = genai_legacy.GenerativeModel(legacy_model)
+                response = model.generate_content(prompt)
+                if response and response.text:
+                    return response.text.strip()
+            except Exception as e_leg:
+                last_err = e_leg
+                logger.warning(f"Legacy generation attempt with {legacy_model} failed: {e_leg}")
+    except Exception as e_leg_import:
+        logger.debug(f"google.generativeai fallback not available: {e_leg_import}")
+
+    logger.warning(f"All Gemini generation models failed: {last_err}. Falling back to deterministic answer.")
+    raise last_err
 
 
 def answer_question(query: str, top_k: int = 5) -> Dict[str, Any]:

@@ -34,10 +34,10 @@ def test_embedding_generation():
     assert all(isinstance(val, float) for val in emb)
 
 
-# 3. Embedding dimensions test (768 dimensions for text-embedding-004)
+# 3. Embedding dimensions test (768 dimensions for gemini-embedding-2)
 def test_embedding_dimensions():
     model = get_model()
-    assert model == "text-embedding-004"
+    assert model == "gemini-embedding-2"
     text = "Redis caching for latency reduction"
     emb = generate_embedding(text)
     assert len(emb) == 768
